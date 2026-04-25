@@ -462,8 +462,8 @@ def _configured_deck_names() -> set[str]:
 
 def cmd_from_content(content: str, intent: ParsedIntent) -> str:
     """Generate cards from extracted document/image/URL content."""
-    if not intent.deck or not intent.topic:
-        return "I need a deck name and topic. Try: 'Add 10 cards to German deck from this'"
+    if not intent.deck:
+        return "Which deck should I add these cards to? (e.g. _Add 10 cards to German deck_)"
 
     raw_deck = intent.deck
     if "::" in raw_deck:
@@ -484,12 +484,14 @@ def cmd_from_content(content: str, intent: ParsedIntent) -> str:
     if deck_cfg is None:
         deck_cfg = DeckConfig(deck=raw_deck.capitalize(), language=deck_to_language(raw_deck), subdecks={})
 
-    subdeck_key = forced_subdeck or intent.subdeck or clean_subdeck_key(intent.topic)
+    # topic is optional for content-based generation — fall back to deck name
+    topic = intent.topic or f"vocabulary from document"
+    subdeck_key = forced_subdeck or intent.subdeck or clean_subdeck_key(topic)
     fields = [CardField.word, CardField.translation, CardField.example]
     media_types = [MediaType(m) for m in intent.media if m in MediaType._value2member_map_]
 
     subdeck_cfg = SubdeckConfig(
-        topic=intent.topic,
+        topic=topic,
         daily_limit=intent.quantity,
         fields=fields,
         media=media_types,
