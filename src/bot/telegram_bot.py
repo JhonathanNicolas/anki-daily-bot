@@ -160,6 +160,7 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             intents = parse_multi_message(text)
             if intents:
                 logger.info("Batch request: %d intents", len(intents))
+                await _reply(update, _batch_preview(intents))
                 loop = asyncio.get_event_loop()
                 result = await loop.run_in_executor(None, cmd_batch, intents)
                 await _reply(update, result)
@@ -233,6 +234,26 @@ def _media_report(media_types: list, audio_ok: int, audio_fail: int, img_ok: int
         fail_note = f", {img_fail} failed — {img_error}" if img_fail and img_error else (f", {img_fail} failed" if img_fail else "")
         lines.append(f"Images: {img_ok} added{fail_note}")
     return ("\n".join(lines) + "\n") if lines else ""
+
+
+def _batch_preview(intents: list) -> str:
+    lines = ["*Processing:*"]
+    for i, intent in enumerate(intents, 1):
+        deck = intent.deck or "?"
+        if intent.intent == "generate_cards":
+            topic = intent.topic or "cards"
+            lines.append(f"{i}. Add {intent.quantity} cards about _{topic}_ to *{deck}*")
+        elif intent.intent == "create_deck":
+            lines.append(f"{i}. Create deck *{deck}*")
+        elif intent.intent == "delete":
+            lines.append(f"{i}. Delete deck *{deck}*")
+        elif intent.intent == "list_decks":
+            lines.append(f"{i}. List all decks")
+        elif intent.intent == "status":
+            lines.append(f"{i}. Check Anki status")
+        else:
+            lines.append(f"{i}. {intent.intent}")
+    return "\n".join(lines)
 
 
 def _run_wizard_generation(wizard: DeckWizard) -> str:
