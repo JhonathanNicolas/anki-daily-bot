@@ -1,0 +1,29 @@
+# Environment — never commit API keys
+.env
+
+# Virtual environment
+.venv/
+
+# Generated output
+output/
+media_cache/
+logs/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Ruff cache
+.ruff_cache/
+
+# OS
+.DS_Store
+Thumbs.db

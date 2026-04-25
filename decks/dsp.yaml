@@ -1,0 +1,18 @@
+deck: Dsp
+language: en
+ai_provider: claude
+subdecks:
+  fft:
+    topic: About fourrier transform, FFT, DFT, Nyquist. Equation, definitions and
+      exercises
+    daily_limit: 10
+    fields:
+    - Question
+    - Answer
+    - Formula
+    - Example
+    - Difficulty
+    media:
+    - latex
+    deck_type: stem
+    card_style: standard

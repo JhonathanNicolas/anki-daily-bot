@@ -1,0 +1,71 @@
+deck: German
+language: de
+ai_provider: claude
+subdecks:
+  numbers:
+    topic: numbers and counting in German
+    daily_limit: 10
+    fields:
+    - Word
+    - Translation
+    - Example
+    - Audio
+    media:
+    - audio
+    extra_instructions: Include the numeral digit alongside the written word (e.g.,
+      '1 - eins').
+  colors:
+    topic: colors in German
+    daily_limit: 5
+    fields:
+    - Word
+    - Translation
+    - Image
+    media:
+    - image
+  greetings:
+    topic: common greetings and farewells in German
+    daily_limit: 5
+    fields:
+    - Word
+    - Translation
+    - Example
+    - Audio
+    media:
+    - audio
+    extra_instructions: Include both formal and informal variants where applicable.
+  farben:
+    topic: Deck to learn German color vocabulary.
+    daily_limit: 10
+    fields:
+    - Word
+    - Translation
+    - Example
+    - Audio
+    media:
+    - audio
+    - image
+  tiere:
+    topic: Deck to learn animal names in German.
+    daily_limit: 3
+    fields:
+    - Word
+    - Translation
+    - Example
+    - Audio
+    media:
+    - audio
+    - image
+  idiom:
+    topic: Deck to learn common German idioms and expressions.
+    daily_limit: 10
+    fields:
+    - Word
+    - Translation
+    - Example
+    - Audio
+    media:
+    - audio
+    - image
+    deck_type: language
+    card_style: standard

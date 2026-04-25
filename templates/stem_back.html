@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <script>
+    MathJax = { tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] } };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+  <style>
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      display: flex; justify-content: flex-start; align-items: flex-start;
+      min-height: 100vh; margin: 0; background: #0f172a;
+    }
+    .card-back { max-width: 650px; width: 100%; padding: 2rem; }
+    .answer { font-size: 1.4rem; font-weight: 600; color: #38bdf8; margin-bottom: 1rem; }
+    .formula-box {
+      background: #1e293b; border-left: 4px solid #38bdf8;
+      padding: 1rem 1.25rem; border-radius: 6px; margin-bottom: 1rem;
+      font-size: 1.1rem; color: #e2e8f0; overflow-x: auto;
+    }
+    .example {
+      font-style: italic; color: #94a3b8; font-size: 1rem;
+      border-left: 3px solid #475569; padding-left: 0.75rem; margin-bottom: 1rem;
+    }
+    .notes {
+      background: #1e293b; border-radius: 6px; padding: 0.5rem 0.75rem;
+      font-size: 0.9rem; color: #64748b;
+    }
+    .difficulty { display: inline-block; padding: 0.2rem 0.7rem;
+      border-radius: 999px; font-size: 0.8rem; font-weight: 600; margin-bottom: 1rem; }
+    .easy { background: #166534; color: #86efac; }
+    .medium { background: #92400e; color: #fcd34d; }
+    .hard { background: #7f1d1d; color: #fca5a5; }
+    .media-image img { max-width: 100%; max-height: 220px; border-radius: 8px; margin-bottom: 1rem; }
+    .empty { display: none; }
+  </style>
+</head>
+<body>
+  <div class="card-back">
+    {{difficulty_badge}}
+    <div class="answer">{{answer}}</div>
+    <div class="formula-box {{formula_class}}">{{formula}}</div>
+    <div class="example {{example_class}}">{{example}}</div>
+    <div class="notes {{notes_class}}">{{notes}}</div>
+    <div class="media-image {{image_class}}">{{image}}</div>
+  </div>
+</body>
+</html>

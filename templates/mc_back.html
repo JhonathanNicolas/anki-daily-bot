@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <script>
+    MathJax = { tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] } };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+  <style>
+    body { font-family: "Segoe UI", Arial, sans-serif; background: #0f172a;
+      display: flex; justify-content: center; min-height: 100vh; margin: 0; }
+    .card { max-width: 650px; width: 100%; padding: 2rem; }
+    .question { font-size: 1.2rem; color: #94a3b8; margin-bottom: 1rem; }
+    .choices { list-style: none; padding: 0; margin: 0 0 1rem 0; }
+    .choices li { padding: 0.6rem 1rem; margin: 0.4rem 0; border-radius: 6px;
+      font-size: 1rem; background: #1e293b; color: #e2e8f0; }
+    .choices li.correct { background: #166534; color: #86efac; font-weight: 700; }
+    .choices li.wrong { background: #1e293b; color: #64748b; text-decoration: line-through; }
+    .formula-box { background: #1e293b; border-left: 4px solid #38bdf8;
+      padding: 0.75rem 1rem; border-radius: 6px; color: #e2e8f0; margin-bottom: 1rem; }
+    .empty { display: none; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="question">{{question}}</div>
+    <div class="formula-box {{formula_class}}">{{formula}}</div>
+    <ul class="choices">{{choices_html}}</ul>
+  </div>
+</body>
+</html>

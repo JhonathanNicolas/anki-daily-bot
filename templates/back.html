@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+      margin: 0;
+      background: #f5f5f5;
+    }
+    .card-back {
+      max-width: 600px;
+      width: 100%;
+      padding: 2rem;
+    }
+    .translation {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #16213e;
+      margin-bottom: 1rem;
+    }
+    .example {
+      font-size: 1.1rem;
+      color: #444;
+      font-style: italic;
+      border-left: 4px solid #0f3460;
+      padding-left: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .notes {
+      font-size: 0.95rem;
+      color: #666;
+      background: #fff;
+      border-radius: 6px;
+      padding: 0.5rem 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .media-image img {
+      max-width: 100%;
+      max-height: 200px;
+      border-radius: 8px;
+      margin-bottom: 0.75rem;
+    }
+    .empty { display: none; }
+  </style>
+</head>
+<body>
+  <div class="card-back">
+    <div class="translation">{{translation}}</div>
+
+    {{audio}}
+
+    <div class="example {{example_class}}">{{example}}</div>
+    <div class="notes {{notes_class}}">{{notes}}</div>
+    <div class="media-image {{image_class}}">{{image}}</div>
+  </div>
+</body>
+</html>
