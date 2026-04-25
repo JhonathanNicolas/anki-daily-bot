@@ -112,3 +112,32 @@ subdecks:
 ```bash
 make test
 ```
+
+## Roadmap
+
+### Security
+- [ ] **User authentication** — whitelist of allowed Telegram user IDs; reject all other users
+- [ ] **Rate limiting** — per-user request throttling to prevent API abuse
+
+### Input sources
+- [ ] **PDF support** — upload a PDF and generate cards from its content
+- [ ] **Plain text / paste** — send raw text or notes and let AI extract card candidates
+- [ ] **Voice messages** — transcribe Telegram voice notes and turn them into cards
+- [ ] **Image / OCR** — photograph a page or whiteboard and generate cards from it
+- [ ] **Web URL** — paste a URL and generate cards from the article content
+
+### Card generation
+- [ ] **Multiple AI providers** — support OpenAI GPT-4o and Google Gemini alongside Claude
+- [ ] **Adaptive difficulty** — use Anki review history to avoid re-generating mastered cards
+- [ ] **Bulk generation** — generate a full deck from a syllabus or topic list in one command
+- [ ] **Card editing** — review and edit AI-generated cards in Telegram before syncing
+
+### Automation
+- [ ] **Scheduled daily runs** — per-deck cron schedule configured via bot commands
+- [ ] **Review reminders** — Telegram notification when cards are due for review
+- [ ] **Progress reports** — weekly summary of cards added, reviewed, and retention rate
+
+### Export & integrations
+- [ ] **Quizlet export** — export decks to Quizlet format
+- [ ] **CSV export** — simple spreadsheet export for any deck
+- [ ] **Notion / Obsidian sync** — mirror card content to a knowledge base
