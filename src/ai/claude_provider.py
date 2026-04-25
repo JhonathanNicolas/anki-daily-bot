@@ -73,10 +73,56 @@ def _build_user_prompt(
     )
 
 
+_CONTENT_SYSTEM = """\
+You are a language learning assistant. Your task is to generate Anki flashcards from provided content.
+Always respond with a valid JSON array. Each object in the array is one card.
+Only include the fields requested. Do not add explanations outside the JSON.
+"""
+
+
 class ClaudeProvider(AIProvider):
     def __init__(self, api_key: str | None = None, model: str = "claude-sonnet-4-6") -> None:
         self._client = anthropic.Anthropic(api_key=api_key or os.environ["ANTHROPIC_API_KEY"])
         self._model = model
+
+    def generate_cards_from_content(
+        self,
+        content: str,
+        subdeck_config: SubdeckConfig,
+        language: str,
+        already_known: list[str],
+    ) -> list[CardData]:
+        fields_needed = {f: _CARD_SCHEMA[f] for f in subdeck_config.fields if f in _CARD_SCHEMA}
+        schema_str = json.dumps(fields_needed, indent=2)
+
+        exclude_clause = ""
+        if already_known:
+            sample = ", ".join(f'"{w}"' for w in already_known[:20])
+            exclude_clause = f"\nDo NOT include any of these already-known words: {sample}."
+
+        # Truncate content to stay within token limits
+        snippet = content[:4000] if len(content) > 4000 else content
+
+        prompt = (
+            f"Based on the content below, generate exactly {subdeck_config.daily_limit} "
+            f"Anki flashcards in {language}. "
+            f"Extract the most important vocabulary, concepts, and terms from the content."
+            f"{exclude_clause}\n\n"
+            f"Each card must be a JSON object with these fields:\n{schema_str}\n\n"
+            f"Respond ONLY with a JSON array of {subdeck_config.daily_limit} objects.\n\n"
+            f"--- CONTENT ---\n{snippet}\n--- END CONTENT ---"
+        )
+
+        message = self._client.messages.create(
+            model=self._model,
+            max_tokens=4096,
+            system=_CONTENT_SYSTEM,
+            messages=[{"role": "user", "content": prompt}],
+        )
+
+        raw = message.content[0].text.strip()
+        data = json.loads(_extract_json(raw))
+        return [CardData.from_ai_dict(item, subdeck_config.fields, subdeck_config.deck_type) for item in data]
 
     def generate_cards(
         self,

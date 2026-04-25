@@ -460,6 +460,75 @@ def _configured_deck_names() -> set[str]:
         return set()
 
 
+def cmd_from_content(content: str, intent: ParsedIntent) -> str:
+    """Generate cards from extracted document/image/URL content."""
+    if not intent.deck or not intent.topic:
+        return "I need a deck name and topic. Try: 'Add 10 cards to German deck from this'"
+
+    raw_deck = intent.deck
+    if "::" in raw_deck:
+        parts = raw_deck.split("::", 1)
+        raw_deck = parts[0]
+        forced_subdeck = parts[1].lower()
+    else:
+        forced_subdeck = None
+        raw_deck = _resolve_deck_path(raw_deck) or raw_deck
+
+    if "::" in raw_deck:
+        parts = raw_deck.split("::", 1)
+        raw_deck = parts[0]
+        forced_subdeck = parts[1].lower()
+
+    configs = load_all_deck_configs()
+    deck_cfg = next((c for c in configs if c.deck.lower() == raw_deck.lower()), None)
+    if deck_cfg is None:
+        deck_cfg = DeckConfig(deck=raw_deck.capitalize(), language=deck_to_language(raw_deck), subdecks={})
+
+    subdeck_key = forced_subdeck or intent.subdeck or clean_subdeck_key(intent.topic)
+    fields = [CardField.word, CardField.translation, CardField.example]
+    media_types = [MediaType(m) for m in intent.media if m in MediaType._value2member_map_]
+
+    subdeck_cfg = SubdeckConfig(
+        topic=intent.topic,
+        daily_limit=intent.quantity,
+        fields=fields,
+        media=media_types,
+    )
+
+    client = _get_client()
+    use_ankiconnect = client.is_available()
+    sync_manager = SyncManager(client) if use_ankiconnect else None
+    media_cache_dir = Path(os.environ.get("MEDIA_CACHE_DIR", "media_cache"))
+    output_dir = Path(os.environ.get("OUTPUT_DIR", "output"))
+
+    anki_deck_name = deck_cfg.subdeck_anki_name(subdeck_key)
+    already_known = client.existing_words_in_deck(anki_deck_name) if use_ankiconnect else []
+
+    cards = ClaudeProvider().generate_cards_from_content(
+        content, subdeck_cfg, deck_cfg.language, already_known
+    )
+
+    audio_ok, audio_fail, img_ok, img_fail, img_error = fetch_media_for_cards(
+        cards, media_types, deck_cfg.language, media_cache_dir
+    )
+    media_report = _media_report(media_types, audio_ok, audio_fail, img_ok, img_fail, img_error)
+
+    if use_ankiconnect:
+        result = sync_manager.sync_subdeck(deck_cfg, subdeck_key, subdeck_cfg, cards)
+        cleanup_media_cache(media_cache_dir)
+        sync_manager.trigger_sync()
+        return (
+            f"Done! Added to *{deck_cfg.deck}::{subdeck_key.capitalize()}*\n"
+            f"Added: {result['added']} | Updated: {result['updated']} | Skipped: {result['skipped']}\n"
+            f"{media_report}"
+            f"AnkiWeb sync triggered."
+        )
+    else:
+        apkg = export_deck(deck_cfg, subdeck_key, subdeck_cfg, cards, output_dir, media_cache_dir)
+        cleanup_media_cache(media_cache_dir)
+        return f"Exported to `{apkg.name}` — import manually.\n{media_report}"
+
+
 def cmd_batch(intents: list[ParsedIntent], max_workers: int = 4) -> str:
     """Execute multiple intents concurrently and return one aggregated reply."""
     results: dict[int, str] = {}

@@ -17,11 +17,13 @@ from src.bot.commands import (
     cmd_decks,
     cmd_delete_confirm,
     cmd_delete_request,
+    cmd_from_content,
     cmd_run,
     cmd_status,
     deck_id,
 )
 from src.bot.nlu import parse_message, parse_multi_message
+from src.media.document import detect_url, extract_from_image, extract_from_pdf, extract_from_url
 from src.bot.wizard import DeckWizard, WizardCancelled, wizard_start, wizard_step
 
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
@@ -46,6 +48,9 @@ _pending_intents: dict[int, object] = {}
 
 # Active deck creation wizards: {user_id: DeckWizard}
 _pending_wizards: dict[int, DeckWizard] = {}
+
+# Extracted document content waiting for deck instruction: {user_id: str}
+_pending_documents: dict[int, str] = {}
 
 _HELP = """
 *Anki Daily Bot* — AI-powered flashcard generator
@@ -111,6 +116,61 @@ async def run(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await _reply(update, result)
 
 
+async def _handle_content(update: Update, context: ContextTypes.DEFAULT_TYPE, content: str, instruction: str) -> None:
+    """Shared handler once document content is extracted."""
+    user_id = update.effective_user.id
+    if not instruction:
+        _pending_documents[user_id] = content
+        await _reply(update, "Got it! Which deck and how many cards?\nExample: _Add 10 cards to German deck_")
+        return
+    await _reply(update, "Got it, working on it...")
+    try:
+        intent = parse_message(instruction)
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(None, cmd_from_content, content, intent)
+    except Exception as exc:
+        logger.exception("Error in document handler")
+        result = f"Something went wrong: {exc}"
+    await _reply(update, result)
+
+
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    _log_message(update, "photo")
+    await _reply(update, "Extracting content from image...")
+    try:
+        photo = update.message.photo[-1]
+        file = await context.bot.get_file(photo.file_id)
+        file_bytes = await file.download_as_bytearray()
+        loop = asyncio.get_event_loop()
+        content = await loop.run_in_executor(None, extract_from_image, bytes(file_bytes), "image/jpeg")
+    except Exception as exc:
+        logger.exception("Image extraction failed")
+        await _reply(update, f"Could not read image: {exc}")
+        return
+    caption = (update.message.caption or "").strip()
+    await _handle_content(update, context, content, caption)
+
+
+async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    _log_message(update, "document")
+    doc = update.message.document
+    if not doc.mime_type == "application/pdf":
+        await _reply(update, "Unsupported file type. Please send a PDF or an image.")
+        return
+    await _reply(update, "Extracting content from PDF...")
+    try:
+        file = await context.bot.get_file(doc.file_id)
+        file_bytes = await file.download_as_bytearray()
+        loop = asyncio.get_event_loop()
+        content = await loop.run_in_executor(None, extract_from_pdf, bytes(file_bytes))
+    except Exception as exc:
+        logger.exception("PDF extraction failed")
+        await _reply(update, f"Could not read PDF: {exc}")
+        return
+    caption = (update.message.caption or "").strip()
+    await _handle_content(update, context, content, caption)
+
+
 async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     from src.bot.nlu import ParsedIntent
 
@@ -150,6 +210,35 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if pending and text != pending["token"]:
         del _pending_deletes[user_id]
         await _reply(update, "Delete cancelled.")
+        return
+
+    # --- Pending document waiting for deck instruction ---
+    pending_content = _pending_documents.pop(user_id, None)
+    if pending_content is not None:
+        await _reply(update, "Got it, working on it...")
+        try:
+            intent = parse_message(text)
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(None, cmd_from_content, pending_content, intent)
+        except Exception as exc:
+            logger.exception("Error processing pending document")
+            result = f"Something went wrong: {exc}"
+        await _reply(update, result)
+        return
+
+    # --- URL detected in message ---
+    url = detect_url(text)
+    if url:
+        instruction = text.replace(url, "").strip()
+        await _reply(update, "Got it, fetching content from URL...")
+        try:
+            loop = asyncio.get_event_loop()
+            content = await loop.run_in_executor(None, extract_from_url, url)
+        except Exception as exc:
+            logger.exception("URL extraction failed")
+            await _reply(update, f"Could not fetch URL: {exc}")
+            return
+        await _handle_content(update, context, content, instruction)
         return
 
     await _reply(update, "Got it, working on it...")
@@ -356,6 +445,8 @@ def run_bot() -> None:
     app.add_handler(CommandHandler("status", status))
     app.add_handler(CommandHandler("decks", decks))
     app.add_handler(CommandHandler("run", run))
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+    app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, chat))
 
     logger.info("Bot is running. Press Ctrl+C to stop.")
