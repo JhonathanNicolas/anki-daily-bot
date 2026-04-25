@@ -2,12 +2,26 @@ from __future__ import annotations
 
 import json
 import os
+import re
 
 import anthropic
 
 from src.ai.base import AIProvider
 from src.card.models import CardData
 from src.config.models import CardField, SubdeckConfig
+
+def _extract_json(text: str) -> str:
+    """Extract a JSON array from a response that may be wrapped in code fences."""
+    text = text.strip()
+    # Strip ```json ... ``` or ``` ... ``` fences
+    text = re.sub(r"^```(?:json)?\s*", "", text)
+    text = re.sub(r"\s*```$", "", text)
+    # As a last resort, find the outermost [...] array
+    m = re.search(r"\[.*\]", text, re.DOTALL)
+    if m:
+        return m.group(0)
+    return text
+
 
 _SYSTEM_PROMPT = """\
 You are a language learning assistant. Your task is to generate Anki flashcard data.
@@ -71,11 +85,5 @@ class ClaudeProvider(AIProvider):
         )
 
         raw = message.content[0].text.strip()
-        # Strip markdown code fences if Claude wraps the JSON
-        if raw.startswith("```"):
-            raw = raw.split("```")[1]
-            if raw.startswith("json"):
-                raw = raw[4:]
-
-        data = json.loads(raw)
+        data = json.loads(_extract_json(raw))
         return [CardData.from_ai_dict(item, subdeck_config.fields, subdeck_config.deck_type) for item in data]

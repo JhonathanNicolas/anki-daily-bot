@@ -131,11 +131,11 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 result = await loop.run_in_executor(None, _run_wizard_generation, updated_wizard)
                 await _reply(update, result)
         except WizardCancelled:
-            del _pending_wizards[user_id]
+            _pending_wizards.pop(user_id, None)
             await _reply(update, "Cancelled. Nothing was created.")
         except Exception as exc:
             logger.exception("Error in wizard step")
-            del _pending_wizards[user_id]
+            _pending_wizards.pop(user_id, None)
             await _reply(update, f"Something went wrong: {exc}")
         return
 

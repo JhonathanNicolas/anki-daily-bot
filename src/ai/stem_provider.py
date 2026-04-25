@@ -2,11 +2,23 @@ from __future__ import annotations
 
 import json
 import os
+import re
 
 import anthropic
 
 from src.card.models import CardData
 from src.config.models import CardField, CardStyle, SubdeckConfig
+
+def _extract_json(text: str) -> str:
+    """Extract a JSON array from a response that may be wrapped in code fences."""
+    text = text.strip()
+    text = re.sub(r"^```(?:json)?\s*", "", text)
+    text = re.sub(r"\s*```$", "", text)
+    m = re.search(r"\[.*\]", text, re.DOTALL)
+    if m:
+        return m.group(0)
+    return text
+
 
 _SYSTEM = """\
 You are an expert educator creating Anki flashcards for STEM subjects.
@@ -103,12 +115,7 @@ class StemProvider:
         )
 
         raw = message.content[0].text.strip()
-        if raw.startswith("```"):
-            raw = raw.split("```")[1]
-            if raw.startswith("json"):
-                raw = raw[4:]
-
-        data = json.loads(raw)
+        data = json.loads(_extract_json(raw))
 
         if card_style == CardStyle.cloze:
             return [CardData.from_cloze_dict(item) for item in data]
