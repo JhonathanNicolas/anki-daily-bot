@@ -70,7 +70,7 @@ def parse_message(text: str) -> ParsedIntent:
         messages=[{"role": "user", "content": text}],
     )
     raw = message.content[0].text.strip()
-    data = json.loads(_extract_json(raw))
+    data = json.loads(_extract_json_object(raw))
     return ParsedIntent(
         intent=data.get("intent", "unknown"),
         deck=_clean_deck_name(data.get("deck")),
@@ -98,7 +98,7 @@ def parse_multi_message(text: str) -> list[ParsedIntent] | None:
         messages=[{"role": "user", "content": text}],
     )
     raw = message.content[0].text.strip()
-    data = json.loads(_extract_json(raw))
+    data = json.loads(_extract_json_array(raw))
 
     if not isinstance(data, list) or len(data) < 2:
         return None
@@ -142,12 +142,17 @@ def _clean_deck_name(name: str | None) -> str | None:
     return cleaned or None
 
 
-def _extract_json(text: str) -> str:
+def _extract_json_object(text: str) -> str:
+    """Extract a single JSON object {...} — used by parse_message."""
     text = re.sub(r"^```(?:json)?\s*", "", text.strip())
     text = re.sub(r"\s*```$", "", text)
-    # Find outermost { } or [ ]
-    for pattern in (r"\[.*\]", r"\{.*\}"):
-        m = re.search(pattern, text, re.DOTALL)
-        if m:
-            return m.group(0)
-    return text
+    m = re.search(r"\{.*\}", text, re.DOTALL)
+    return m.group(0) if m else text
+
+
+def _extract_json_array(text: str) -> str:
+    """Extract a JSON array [...] — used by parse_multi_message."""
+    text = re.sub(r"^```(?:json)?\s*", "", text.strip())
+    text = re.sub(r"\s*```$", "", text)
+    m = re.search(r"\[.*\]", text, re.DOTALL)
+    return m.group(0) if m else text
