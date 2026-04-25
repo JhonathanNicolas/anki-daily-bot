@@ -338,8 +338,12 @@ class SyncManager:
     def _find_existing(
         self, deck_name: str, key: str, field: str = "Word"
     ) -> tuple[int, dict[str, str]] | None:
+        import re
         escaped_deck = deck_name.replace('"', '\\"')
-        escaped_key = key.replace('"', '\\"')
+        # Strip backslashes and control chars — AI-generated content (e.g. C code)
+        # can contain \0, \n, \t which are invalid in Anki's search syntax.
+        safe_key = re.sub(r"[\x00-\x1f\x7f\\]", " ", key).strip()[:80]
+        escaped_key = safe_key.replace('"', '\\"')
         query = f'deck:"{escaped_deck}" {field}:"{escaped_key}"'
         note_ids = self._client.find_notes(query)
         if not note_ids:

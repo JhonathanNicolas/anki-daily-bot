@@ -46,7 +46,11 @@ return ONLY a JSON array, where each element has these fields:
 
 Rules:
 - Each distinct instruction becomes one object in the array
-- Apply the same rules as for single-intent parsing
+- "add word X to deck Y" or "add the word X" → quantity = 1, topic = X
+- "add N words/cards" → quantity = N
+- If no quantity is mentioned and the topic is a single specific word → quantity = 1
+- If no quantity is mentioned and the topic is a general subject → quantity = 10
+- "create deck X" → intent = "create_deck", not "generate_cards"
 - Return ONLY a valid JSON array, no extra text
 """
 
