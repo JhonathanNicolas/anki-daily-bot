@@ -113,72 +113,110 @@ subdecks:
 make test
 ```
 
-## Deploying to a VPS (Hostinger / Ubuntu 22.04 LTS)
+## Architecture (fully on VPS)
 
-### 1. On the server — initial setup
-
-```bash
-# Update system
-sudo apt update && sudo apt upgrade -y
-
-# Install Python 3.12 and git
-sudo apt install -y python3.12 python3.12-venv python3-pip git
-
-# Create a dedicated user (no login shell, no sudo)
-sudo useradd -m -s /bin/bash anki
-
-# Switch to that user
-sudo su - anki
+```
+VPS (Hostinger — Ubuntu 22.04)
+──────────────────────────────────────────────
+Xvfb :99  (virtual display)
+  └── Anki (headless) + AnkiConnect :8765
+        ↕ AnkiWeb  (collection sync)
+Telegram Bot → localhost:8765
 ```
 
-### 2. Clone and configure
+Anki runs headlessly on the VPS using a virtual display (Xvfb). AnkiConnect listens on `localhost:8765`. Your collection is kept in sync with AnkiWeb — no personal computer needed.
+
+---
+
+## Deploying to a VPS (Hostinger / Ubuntu 22.04 LTS)
+
+### 1. Clone the repo on the VPS
 
 ```bash
-# As user 'anki'
+sudo apt install -y git
 git clone git@github.com:JhonathanNicolas/anki-daily-bot.git
 cd anki-daily-bot
+```
 
-# Install dependencies
-make install
+### 2. Run the setup script
 
-# Create .env with your real keys
-cp .env.example .env
+```bash
+bash deploy/setup_server.sh
+```
+
+This installs: Python 3.12, Xvfb, Anki, all Python dependencies, and registers three systemd services (`xvfb`, `anki-headless`, `anki-bot`).
+
+### 3. Fill in your API keys
+
+```bash
 nano .env
 ```
 
-Fill in `ANTHROPIC_API_KEY`, `TELEGRAM_BOT_TOKEN`, and optionally `UNSPLASH_ACCESS_KEY`.  
-Set `ANKI_CONNECT_URL=http://localhost:8765` only if running Anki on the same machine — on a headless VPS, leave Anki running on your desktop and the bot will fall back to `.apkg` export, or omit it entirely.
+| Key | Where to get it |
+|-----|----------------|
+| `ANTHROPIC_API_KEY` | console.anthropic.com |
+| `TELEGRAM_BOT_TOKEN` | @BotFather on Telegram |
+| `UNSPLASH_ACCESS_KEY` | unsplash.com/developers (optional) |
+| `ANKI_CONNECT_URL` | leave as `http://localhost:8765` |
 
-### 3. Install the systemd service
+### 4. Start Anki headlessly and install AnkiConnect
 
 ```bash
-# Back as your sudo user (exit from 'anki')
-exit
+sudo systemctl start xvfb anki-headless
+```
 
-sudo cp /home/anki/anki-daily-bot/deploy/anki-bot.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable anki-bot
+Anki is now running in the background. Connect to it via VNC or run a one-time setup command to install AnkiConnect:
+
+```bash
+# Install AnkiConnect add-on (code 2055492160)
+DISPLAY=:99 anki -b ~/.local/share/Anki2 &
+sleep 10
+# Then from another terminal, install the add-on via AnkiConnect bootstrap:
+curl -s http://localhost:8765 || echo "AnkiConnect not yet active — install via GUI"
+```
+
+Alternatively, use a VNC viewer to connect to the VPS display `:99` and install the add-on manually:
+- **Tools → Add-ons → Get Add-ons → `2055492159`** → OK → restart Anki
+
+### 5. Sync your existing Anki collection
+
+On your **desktop**, make sure you've synced your collection to AnkiWeb first:
+- Anki desktop → **Sync** button
+
+Then on the **VPS**, log into AnkiWeb inside the headless Anki to pull your collection:
+```bash
+# Via VNC or a one-time DISPLAY command
+DISPLAY=:99 anki &
+# Then sync via Tools → Sync (log in with your AnkiWeb account)
+```
+
+### 6. Start the bot
+
+```bash
 sudo systemctl start anki-bot
-```
-
-### 4. Check it's running
-
-```bash
 sudo systemctl status anki-bot
-# Live logs:
-sudo journalctl -u anki-bot -f
+
+# Live logs
+tail -f logs/bot.log
 ```
 
-### 5. Updating the bot
+### 7. Updating the bot
 
 ```bash
-sudo su - anki
-cd anki-daily-bot
 git pull
-make install          # only needed if requirements.txt changed
-exit
+.venv/bin/pip install -r requirements.txt  # only if dependencies changed
 sudo systemctl restart anki-bot
 ```
+
+### Service overview
+
+| Service | Role |
+|---------|------|
+| `xvfb` | Virtual display `:99` — required by Anki's Qt UI |
+| `anki-headless` | Anki desktop running headlessly + AnkiConnect |
+| `anki-bot` | The Telegram bot |
+
+All three start automatically on server reboot.
 
 ## Roadmap
 

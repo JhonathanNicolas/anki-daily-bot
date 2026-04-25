@@ -1,0 +1,16 @@
+[Unit]
+Description=Anki (headless via Xvfb)
+After=network-online.target xvfb.service
+Requires=xvfb.service
+
+[Service]
+Type=simple
+User=anki
+Environment=DISPLAY=:99
+Environment=HOME=/home/anki
+ExecStart=/home/anki/.local/share/anki/anki
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target
