@@ -456,3 +456,29 @@ def _configured_deck_names() -> set[str]:
         return {c.deck for c in load_all_deck_configs()}
     except Exception:
         return set()
+
+
+def cmd_batch(intents: list[ParsedIntent], max_workers: int = 4) -> str:
+    """Execute multiple intents concurrently and return one aggregated reply."""
+    # Intents that can run in parallel (generate/chat)
+    # create_deck is wizard-based so we skip it here — caller should guard against it
+    results: dict[int, str] = {}
+
+    def _run(idx: int, intent: ParsedIntent) -> tuple[int, str]:
+        try:
+            return idx, cmd_chat(intent)
+        except Exception as exc:
+            return idx, f"Error: {exc}"
+
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futures = {pool.submit(_run, i, intent): i for i, intent in enumerate(intents)}
+        for fut in as_completed(futures):
+            idx, result = fut.result()
+            results[idx] = result
+
+    lines = []
+    for i, intent in enumerate(intents):
+        label = f"*{intent.deck}*" if intent.deck else f"request {i + 1}"
+        lines.append(f"{label}\n{results.get(i, 'No result')}")
+
+    return "\n\n".join(lines)

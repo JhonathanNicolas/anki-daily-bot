@@ -12,6 +12,7 @@ from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandl
 from telegram.request import HTTPXRequest
 
 from src.bot.commands import (
+    cmd_batch,
     cmd_chat,
     cmd_decks,
     cmd_delete_confirm,
@@ -20,7 +21,7 @@ from src.bot.commands import (
     cmd_status,
     deck_id,
 )
-from src.bot.nlu import parse_message
+from src.bot.nlu import parse_message, parse_multi_message
 from src.bot.wizard import DeckWizard, WizardCancelled, wizard_start, wizard_step
 
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
@@ -154,6 +155,16 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await _reply(update, "Got it, working on it...")
 
     try:
+        # --- Batch: multiple instructions in one message ---
+        if _pending_intents.get(user_id) is None:
+            intents = parse_multi_message(text)
+            if intents:
+                logger.info("Batch request: %d intents", len(intents))
+                loop = asyncio.get_event_loop()
+                result = await loop.run_in_executor(None, cmd_batch, intents)
+                await _reply(update, result)
+                return
+
         # --- Resume a partial intent if the user is answering a follow-up question ---
         partial: ParsedIntent | None = _pending_intents.pop(user_id, None)
         if partial is not None:
