@@ -69,3 +69,16 @@ subdecks:
     - image
     deck_type: language
     card_style: standard
+  zahlen:
+    topic: Deck to learn German numbers and counting.
+    daily_limit: 10
+    fields:
+    - Word
+    - Translation
+    - Example
+    - Audio
+    media:
+    - audio
+    - image
+    deck_type: language
+    card_style: standard

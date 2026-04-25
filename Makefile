@@ -3,12 +3,12 @@ PYTHON = $(VENV)/bin/python
 PIP = $(VENV)/bin/pip
 PYTEST = $(VENV)/bin/pytest
 RUFF = $(VENV)/bin/ruff
-VENV_SITE = $(VENV)/lib/python3.10/site-packages
+VENV_SITE = $(VENV)/lib/python3.12/site-packages
 
 .PHONY: install test lint run run-dry bot daily schedule-install schedule-remove
 
 install:
-	python3.10 -m venv $(VENV)
+	python3 -m venv $(VENV)
 	$(PIP) install -r requirements.txt
 
 test:
