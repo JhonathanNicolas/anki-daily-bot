@@ -9,6 +9,7 @@ User=anki
 Environment=DISPLAY=:99
 Environment=HOME=/home/anki
 ExecStart=/usr/local/bin/anki
+ExecStartPost=/bin/bash -c 'sleep 20 && DISPLAY=:99 xdotool key Escape Return Escape Return'
 Restart=on-failure
 RestartSec=15
 
