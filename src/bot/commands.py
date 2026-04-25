@@ -460,12 +460,24 @@ def _configured_deck_names() -> set[str]:
 
 def cmd_batch(intents: list[ParsedIntent], max_workers: int = 4) -> str:
     """Execute multiple intents concurrently and return one aggregated reply."""
-    # Intents that can run in parallel (generate/chat)
-    # create_deck is wizard-based so we skip it here — caller should guard against it
     results: dict[int, str] = {}
+
+    def _sanitize(intent: ParsedIntent) -> ParsedIntent:
+        """Strip newlines/extra whitespace that batch NLU sometimes embeds."""
+        if intent.deck:
+            intent.deck = intent.deck.strip().replace("\n", " ")
+        if intent.subdeck:
+            intent.subdeck = intent.subdeck.strip().replace("\n", " ")
+        if intent.topic:
+            intent.topic = intent.topic.strip().replace("\n", " ")
+        return intent
 
     def _run(idx: int, intent: ParsedIntent) -> tuple[int, str]:
         try:
+            intent = _sanitize(intent)
+            if intent.intent == "create_deck":
+                label = intent.deck or "new deck"
+                return idx, f"⚠️ *{label}*: deck creation requires the setup wizard — send it as a separate message."
             return idx, cmd_chat(intent)
         except Exception as exc:
             return idx, f"Error: {exc}"

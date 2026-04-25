@@ -114,7 +114,7 @@ class AnkiConnectClient:
 
     def existing_words_in_deck(self, deck_name: str) -> list[str]:
         """Return primary field values already in a deck (Word for language, Question for STEM)."""
-        escaped = deck_name.replace('"', '\\"')
+        escaped = deck_name.strip().replace("\n", " ").replace('"', '\\"')
         note_ids = self.find_notes(f'deck:"{escaped}"')
         if not note_ids:
             return []
