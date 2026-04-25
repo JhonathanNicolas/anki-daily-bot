@@ -298,7 +298,7 @@ def _run_wizard_generation(wizard: DeckWizard) -> str:
             card_style=card_style.value,
         )
 
-        style_label = f" ({card_style.value})" if card_style != CardStyle.standard else ""
+        style_label = f" ({card_style.value.replace('_', ' ')})" if card_style != CardStyle.standard else ""
         return (
             f"Done! Added to *{wizard.full_path}*{style_label}\n"
             f"Added: {result['added']} | Updated: {result['updated']} | Skipped: {result['skipped']}\n"

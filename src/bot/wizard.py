@@ -136,7 +136,7 @@ def wizard_step(wizard: DeckWizard, user_input: str) -> tuple[DeckWizard, str, b
             wizard.media = ["audio"]  # sensible language default
         wizard.step = "description"
         return wizard, (
-            f"Got it — *{wizard.deck_type.value}* deck.\n\n"
+            f"Got it — *{wizard.deck_type.value.replace('_', ' ')}* deck.\n\n"
             f"Describe this deck in one sentence, or send `skip` to auto-generate:"
         ), False
 
@@ -193,7 +193,7 @@ def wizard_step(wizard: DeckWizard, user_input: str) -> tuple[DeckWizard, str, b
         media_label = ", ".join(wizard.media) if wizard.media else "text only"
         return wizard, (
             f"*{wizard.full_path}* is all set!\n"
-            f"Type: {wizard.deck_type.value} | Style: {wizard.card_style.value} | Media: {media_label}\n"
+            f"Type: {wizard.deck_type.value} | Style: {wizard.card_style.value.replace('_', ' ')} | Media: {media_label}\n"
             f"Description: _{wizard.description}_\n\n"
             f"Generating {wizard.quantity} cards now..."
         ), True
