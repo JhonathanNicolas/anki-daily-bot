@@ -47,6 +47,7 @@ class SubdeckConfig(BaseModel):
     fields: list[CardField] = Field(default_factory=lambda: [CardField.word, CardField.translation])
     media: list[MediaType] = Field(default_factory=list)
     extra_instructions: Optional[str] = None
+    single_word: bool = False  # True → generate a definition card FOR this word; False → use as theme
 
     @field_validator("fields")
     @classmethod

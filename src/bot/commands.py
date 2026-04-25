@@ -329,6 +329,7 @@ def cmd_chat(intent: ParsedIntent) -> str:
         card_style=saved.card_style if saved else CardStyle.standard,
         fields=fields,
         media=media_types,
+        single_word=getattr(intent, "single_word", False),
     )
 
     client = _get_client()

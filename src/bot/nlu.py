@@ -12,23 +12,20 @@ You are an assistant that parses user messages about an Anki flashcard bot into 
 
 Given a user message, return ONLY a JSON object with these fields:
 - "intent": one of "generate_cards", "create_deck", "delete", "list_decks", "status", "help", "unknown"
-- "deck": the full deck path mentioned. For top-level decks use just the name (e.g. "German"). For subdecks use Anki notation (e.g. "German::Numbers"). For delete intent, always preserve the full path exactly as the user said.
-- "subdeck": a short snake_case key for the subdeck (e.g. "weather", "numbers", "food"), or null. Only used for generate_cards intent.
-- "topic": a descriptive topic string for card generation (e.g. "weather vocabulary and expressions"), or null
-- "quantity": number of cards requested (integer), default 10
-- "media": list of media types to include — "audio" for pronunciation, "image" for pictures (default: ["audio"])
+- "deck": the full deck path mentioned (e.g. "German" or "German::Numbers"), or null
+- "subdeck": a short snake_case key for the subdeck (e.g. "weather", "numbers", "food"), or null
+- "topic": the word or topic for card generation, or null
+- "quantity": number of cards (integer), default 10
+- "media": list of media types — "audio", "image" (default: ["audio"])
+- "single_word": true if the user wants a card FOR a specific word (its definition/meaning); false if the word is a theme to generate multiple cards around
 
 Rules:
-- If the user says "my german deck" → deck = "German"
-- Infer subdeck key from topic (e.g. "weather" → subdeck = "weather")
-- If quantity is not mentioned, default to 10
-- For language decks, always include "audio" by default
-- "add the word X to deck Y" → intent = "generate_cards", topic = "the word X", quantity = 1
-- "English book" or "English books deck" → deck = "English", subdeck = "books"
-- "create deck X", "new deck X", "create subdeck X in Y" → intent = "create_deck" (user wants to set up a deck, not generate cards yet)
-- "add X to deck Y" where X is a specific word or phrase → intent = "generate_cards", topic = X, quantity = 1
-- If the user references a subdeck by an informal name (e.g. "book", "books", "the book deck") infer the subdeck key from that name
-- "delete the deck with ID abc123" or "delete deck abc123" or "the ID is abc123" → intent = "delete", deck = "abc123"
+- "add word X" / "add the word X" → quantity = 1, single_word = true, topic = X
+- "add N words about X" / "add cards about X" / "add N cards about X" → single_word = false, topic = X, quantity = N (default 10)
+- "add X to deck Y" where X is one specific word → quantity = 1, single_word = true
+- "create deck X" → intent = "create_deck"
+- "delete deck X" / "delete deck with ID abc" → intent = "delete", deck = X or the ID
+- For language decks include "audio" by default
 - Return ONLY valid JSON, no extra text
 """
 
@@ -40,17 +37,18 @@ return ONLY a JSON array, where each element has these fields:
 - "intent": one of "generate_cards", "create_deck", "delete", "list_decks", "status", "help", "unknown"
 - "deck": deck path (e.g. "German" or "German::Numbers"), or null
 - "subdeck": short snake_case subdeck key, or null
-- "topic": descriptive topic for card generation, or null
+- "topic": the word or topic for card generation, or null
 - "quantity": integer number of cards (default 10)
 - "media": list of media types — "audio", "image" (default: ["audio"])
+- "single_word": true if the user wants a card FOR a specific word (its definition); false if the word is a theme
 
 Rules:
 - Each distinct instruction becomes one object in the array
-- "add word X to deck Y" or "add the word X" → quantity = 1, topic = X
-- "add N words/cards" → quantity = N
-- If no quantity is mentioned and the topic is a single specific word → quantity = 1
-- If no quantity is mentioned and the topic is a general subject → quantity = 10
-- "create deck X" → intent = "create_deck", not "generate_cards"
+- "add word X" / "add the word X" → quantity = 1, single_word = true, topic = X
+- "add N words about X" / "add cards about X" → single_word = false, quantity = N (default 10)
+- If no quantity and topic is one specific word → quantity = 1, single_word = true
+- If no quantity and topic is a general subject → quantity = 10, single_word = false
+- "create deck X" → intent = "create_deck"
 - Return ONLY a valid JSON array, no extra text
 """
 
@@ -63,6 +61,7 @@ class ParsedIntent:
     topic: str | None = None
     quantity: int = 10
     media: list[str] = field(default_factory=lambda: ["audio"])
+    single_word: bool = False  # True = card FOR this word; False = cards themed around it
 
 
 def parse_message(text: str) -> ParsedIntent:
@@ -82,6 +81,7 @@ def parse_message(text: str) -> ParsedIntent:
         topic=data.get("topic"),
         quantity=int(data.get("quantity") or 10),
         media=data.get("media", ["audio"]),
+        single_word=bool(data.get("single_word", False)),
     )
 
 
@@ -116,6 +116,7 @@ def parse_multi_message(text: str) -> list[ParsedIntent] | None:
             topic=item.get("topic"),
             quantity=int(item.get("quantity") or 10),
             media=item.get("media", ["audio"]),
+            single_word=bool(item.get("single_word", False)),
         ))
     return intents
 

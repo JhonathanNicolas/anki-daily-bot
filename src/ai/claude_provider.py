@@ -45,14 +45,23 @@ def _build_user_prompt(
     fields_needed = {f: _CARD_SCHEMA[f] for f in config.fields if f in _CARD_SCHEMA}
     schema_str = json.dumps(fields_needed, indent=2)
 
+    instructions = f"\nExtra instructions: {config.extra_instructions}" if config.extra_instructions else ""
+
+    if config.single_word:
+        # One precise card for the specific word/phrase itself
+        return (
+            f'Create exactly 1 Anki flashcard for the word or phrase: "{config.topic}" in {language}.\n'
+            f"The card must define this exact word — its meaning, translation, and a natural example sentence.\n"
+            f"{instructions}\n\n"
+            f"Each card must be a JSON object with these fields:\n{schema_str}\n\n"
+            f"Respond ONLY with a JSON array containing exactly 1 object."
+        )
+
+    # Theme-based generation
     exclude_clause = ""
     if already_known:
         sample = ", ".join(f'"{w}"' for w in already_known[:20])
         exclude_clause = f"\nDo NOT include any of these already-known words: {sample}."
-
-    instructions = ""
-    if config.extra_instructions:
-        instructions = f"\nExtra instructions: {config.extra_instructions}"
 
     return (
         f"Generate exactly {config.daily_limit} flashcards for the topic: "
