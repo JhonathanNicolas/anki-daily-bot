@@ -8,7 +8,7 @@ Type=simple
 User=anki
 Environment=DISPLAY=:99
 Environment=HOME=/home/anki
-ExecStart=/home/anki/.local/share/anki/anki
+ExecStart=/usr/local/bin/anki
 Restart=on-failure
 RestartSec=15
 
