@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -463,13 +464,16 @@ def cmd_batch(intents: list[ParsedIntent], max_workers: int = 4) -> str:
     results: dict[int, str] = {}
 
     def _sanitize(intent: ParsedIntent) -> ParsedIntent:
-        """Strip newlines/extra whitespace that batch NLU sometimes embeds."""
+        """Strip all control characters the batch NLU sometimes embeds."""
+        def clean(s: str) -> str:
+            return re.sub(r"[\x00-\x1f\x7f]", " ", s).strip()
+
         if intent.deck:
-            intent.deck = intent.deck.strip().replace("\n", " ")
+            intent.deck = clean(intent.deck)
         if intent.subdeck:
-            intent.subdeck = intent.subdeck.strip().replace("\n", " ")
+            intent.subdeck = clean(intent.subdeck)
         if intent.topic:
-            intent.topic = intent.topic.strip().replace("\n", " ")
+            intent.topic = clean(intent.topic)
         return intent
 
     def _run(idx: int, intent: ParsedIntent) -> tuple[int, str]:
