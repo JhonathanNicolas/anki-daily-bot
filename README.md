@@ -113,6 +113,73 @@ subdecks:
 make test
 ```
 
+## Deploying to a VPS (Hostinger / Ubuntu 22.04 LTS)
+
+### 1. On the server — initial setup
+
+```bash
+# Update system
+sudo apt update && sudo apt upgrade -y
+
+# Install Python 3.12 and git
+sudo apt install -y python3.12 python3.12-venv python3-pip git
+
+# Create a dedicated user (no login shell, no sudo)
+sudo useradd -m -s /bin/bash anki
+
+# Switch to that user
+sudo su - anki
+```
+
+### 2. Clone and configure
+
+```bash
+# As user 'anki'
+git clone git@github.com:JhonathanNicolas/anki-daily-bot.git
+cd anki-daily-bot
+
+# Install dependencies
+make install
+
+# Create .env with your real keys
+cp .env.example .env
+nano .env
+```
+
+Fill in `ANTHROPIC_API_KEY`, `TELEGRAM_BOT_TOKEN`, and optionally `UNSPLASH_ACCESS_KEY`.  
+Set `ANKI_CONNECT_URL=http://localhost:8765` only if running Anki on the same machine — on a headless VPS, leave Anki running on your desktop and the bot will fall back to `.apkg` export, or omit it entirely.
+
+### 3. Install the systemd service
+
+```bash
+# Back as your sudo user (exit from 'anki')
+exit
+
+sudo cp /home/anki/anki-daily-bot/deploy/anki-bot.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable anki-bot
+sudo systemctl start anki-bot
+```
+
+### 4. Check it's running
+
+```bash
+sudo systemctl status anki-bot
+# Live logs:
+sudo journalctl -u anki-bot -f
+```
+
+### 5. Updating the bot
+
+```bash
+sudo su - anki
+cd anki-daily-bot
+git pull
+make install          # only needed if requirements.txt changed
+exit
+sudo systemctl restart anki-bot
+```
+
 ## Roadmap
 
 ### Security

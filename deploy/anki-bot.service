@@ -5,14 +5,14 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=YOUR_USER
-WorkingDirectory=/home/YOUR_USER/anki-daily-bot
-EnvironmentFile=/home/YOUR_USER/anki-daily-bot/.env
-ExecStart=/home/YOUR_USER/anki-daily-bot/.venv/bin/python -m src.bot_runner
+User=anki
+WorkingDirectory=/home/anki/anki-daily-bot
+EnvironmentFile=/home/anki/anki-daily-bot/.env
+ExecStart=/home/anki/anki-daily-bot/.venv/bin/python -m src.bot_runner
 Restart=on-failure
 RestartSec=10
-StandardOutput=append:/home/YOUR_USER/anki-daily-bot/logs/bot.log
-StandardError=append:/home/YOUR_USER/anki-daily-bot/logs/bot.log
+StandardOutput=append:/home/anki/anki-daily-bot/logs/bot.log
+StandardError=append:/home/anki/anki-daily-bot/logs/bot.log
 
 [Install]
 WantedBy=multi-user.target
