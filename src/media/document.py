@@ -7,6 +7,69 @@ import re
 import anthropic
 import httpx
 
+# Maps file extension → canonical language name
+_EXT_TO_LANGUAGE: dict[str, str] = {
+    ".c": "c", ".h": "c",
+    ".cpp": "cpp", ".cxx": "cpp", ".cc": "cpp", ".hpp": "cpp",
+    ".py": "python",
+    ".js": "javascript", ".mjs": "javascript",
+    ".ts": "typescript",
+    ".java": "java",
+    ".rs": "rust",
+    ".go": "go",
+    ".cs": "csharp",
+    ".rb": "ruby",
+    ".v": "verilog", ".sv": "systemverilog",
+    ".vhd": "vhdl", ".vhdl": "vhdl",
+    ".asm": "assembly", ".s": "assembly",
+    ".m": "matlab",
+    ".r": "r",
+    ".lua": "lua",
+    ".sh": "bash", ".bash": "bash",
+}
+
+# Normalise user-typed language names to canonical form
+_LANGUAGE_ALIASES: dict[str, str] = {
+    "c++": "cpp", "c sharp": "csharp", "c#": "csharp",
+    "system verilog": "systemverilog", "system-verilog": "systemverilog",
+    "bash": "bash", "shell": "bash",
+    "asm": "assembly",
+}
+
+CODE_EXTENSIONS = set(_EXT_TO_LANGUAGE.keys())
+
+
+def language_from_extension(filename: str) -> str | None:
+    """Return canonical language name for a filename/path, or None."""
+    ext = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    return _EXT_TO_LANGUAGE.get(ext)
+
+
+def normalise_language(lang: str) -> str:
+    """Normalise a user-typed language name to canonical form."""
+    cleaned = lang.strip().lower()
+    return _LANGUAGE_ALIASES.get(cleaned, cleaned)
+
+
+def validate_code_file(filename: str, deck_language: str | None) -> str | None:
+    """Return an error message if the file language doesn't match the deck, else None."""
+    file_lang = language_from_extension(filename)
+    if file_lang is None:
+        return f"Unsupported file type `{filename}`. Supported: {', '.join(sorted(CODE_EXTENSIONS))}"
+    if deck_language:
+        deck_lang = normalise_language(deck_language)
+        if file_lang != deck_lang:
+            return (
+                f"File `{filename}` is *{file_lang.upper()}* but this deck is configured for "
+                f"*{deck_lang.upper()}*. Please send a `{deck_lang}` file."
+            )
+    return None
+
+
+def extract_from_code_file(file_bytes: bytes) -> str:
+    """Read a code file as UTF-8 text."""
+    return file_bytes.decode("utf-8", errors="replace")
+
 
 def detect_url(text: str) -> str | None:
     """Return the first URL found in a message, or None."""

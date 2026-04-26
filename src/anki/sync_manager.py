@@ -8,6 +8,18 @@ from src.anki.connect_client import AnkiConnectClient
 from src.card.models import CardData
 from src.config.models import CardField, CardStyle, DeckConfig, DeckType, MediaType, SubdeckConfig
 
+_CODE_CSS = """
+.card { font-family: "Segoe UI", Arial, sans-serif; font-size: 16px; background: #1e1e2e; color: #cdd6f4; }
+.question { font-size: 1.3rem; font-weight: 600; margin-bottom: 0.8rem; }
+.answer { color: #a6e3a1; margin: 0.5rem 0 1rem; }
+.code-block { background: #181825; border: 1px solid #313244; border-radius: 8px; padding: 14px;
+              text-align: left; overflow-x: auto; margin: 10px 0; }
+.code-block code { font-family: "Consolas", "Courier New", monospace; font-size: 13px;
+                   white-space: pre; color: #cdd6f4; line-height: 1.5; }
+.example { font-style: italic; color: #89b4fa; font-size: 0.9rem; margin-top: 0.5rem; }
+.tag-easy { color: #a6e3a1; } .tag-medium { color: #f9e2af; } .tag-hard { color: #f38ba8; }
+"""
+
 _BASE_CSS_LIGHT = """
 .card { font-family: "Segoe UI", Arial, sans-serif; font-size: 18px; text-align: center; }
 .word { font-size: 2.5rem; font-weight: 700; }
@@ -45,6 +57,10 @@ def _stem_field_names() -> list[str]:
 
 def _mc_field_names() -> list[str]:
     return ["Question", "Answer", "Formula", "Choice2", "Choice3", "Choice4", "Difficulty"]
+
+
+def _code_field_names() -> list[str]:
+    return ["Question", "Answer", "Code", "Example", "Difficulty"]
 
 
 # ---------------------------------------------------------------------------
@@ -88,6 +104,40 @@ def _stem_templates() -> list[dict]:
         "{{#Example}}<br><i>{{Example}}</i>{{/Example}}"
         "{{#Image}}<br>{{Image}}{{/Image}}"
     )}]
+
+
+def _code_templates(lang: str = "") -> list[dict]:
+    lang_label = f" ({lang})" if lang else ""
+    code_block = (
+        '{{#Code}}'
+        '<div class="code-block"><code>{{Code}}</code></div>'
+        '{{/Code}}'
+    )
+    return [
+        {
+            "Name": f"Concept → Code{lang_label}",
+            "Front": '<div class="question">{{Question}}</div>',
+            "Back": (
+                "{{FrontSide}}<hr id=answer>"
+                '<div class="answer">{{Answer}}</div>'
+                + code_block +
+                '{{#Example}}<div class="example">{{Example}}</div>{{/Example}}'
+            ),
+        },
+        {
+            "Name": f"Code → Concept{lang_label}",
+            "Front": (
+                f'<div class="question">What does this {lang or "code"} do?</div>'
+                + code_block
+            ),
+            "Back": (
+                "{{FrontSide}}<hr id=answer>"
+                '<div class="question">{{Question}}</div>'
+                '<div class="answer">{{Answer}}</div>'
+                '{{#Example}}<div class="example">{{Example}}</div>{{/Example}}'
+            ),
+        },
+    ]
 
 
 def _mc_templates() -> list[dict]:
@@ -141,6 +191,8 @@ class SyncManager:
         style = subdeck_config.card_style
         dtype = subdeck_config.deck_type
 
+        if MediaType.code in subdeck_config.media:
+            return self._sync_code(deck_config, subdeck_key, subdeck_config, cards)
         if style == CardStyle.cloze:
             return self._sync_cloze(deck_config, subdeck_key, cards)
         if style == CardStyle.multiple_choice:
@@ -318,6 +370,45 @@ class SyncManager:
                 "Choice2": all_choices[1] if len(all_choices) > 1 else "",
                 "Choice3": all_choices[2] if len(all_choices) > 2 else "",
                 "Choice4": all_choices[3] if len(all_choices) > 3 else "",
+                "Difficulty": card.difficulty,
+            }
+            existing = self._find_existing(anki_deck, card.question, field="Question")
+            tags = _difficulty_tags(card.difficulty)
+            if existing is None:
+                self._client.add_note(anki_deck, model_name, fields, tags)
+                added += 1
+            elif self._fields_changed(existing[1], fields):
+                self._client.update_note_fields(existing[0], fields)
+                updated += 1
+            else:
+                skipped += 1
+
+        return {"added": added, "updated": updated, "skipped": skipped}
+
+    # ── Code ─────────────────────────────────────────────────────────────────
+
+    def _sync_code(
+        self,
+        deck_config: DeckConfig,
+        subdeck_key: str,
+        subdeck_config: SubdeckConfig,
+        cards: list[CardData],
+    ) -> dict[str, int]:
+        anki_deck = deck_config.subdeck_anki_name(subdeck_key)
+        lang = subdeck_config.code_language or ""
+        model_name = f"{anki_deck} Code Model"
+        field_names = _code_field_names()
+
+        self._client.ensure_deck(anki_deck)
+        self._client.ensure_model(model_name, field_names, _code_templates(lang), _CODE_CSS)
+
+        added = updated = skipped = 0
+        for card in cards:
+            fields = {
+                "Question": card.question,
+                "Answer": card.answer,
+                "Code": card.code_snippet,
+                "Example": card.example,
                 "Difficulty": card.difficulty,
             }
             existing = self._find_existing(anki_deck, card.question, field="Question")

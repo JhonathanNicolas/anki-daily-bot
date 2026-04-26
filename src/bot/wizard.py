@@ -9,7 +9,7 @@ import anthropic
 from src.bot.nlu import ParsedIntent
 from src.config.models import CardStyle, DeckType, MediaType
 
-Step = Literal["confirm_name", "deck_type", "description", "media", "card_style", "done"]
+Step = Literal["confirm_name", "deck_type", "description", "media", "code_language", "card_style", "done"]
 
 _CANCEL_WORDS = {"no", "cancel", "stop", "exit", "quit", "abort", "nevermind", "never mind"}
 
@@ -21,6 +21,8 @@ _MEDIA_LANGUAGE = """Choose the media for cards:
 
 _MEDIA_STEM = """Choose the media for cards:
 • `latex` — rendered math formulas (MathJax)
+• `code` — syntax-highlighted code snippets (2 cards per note: concept→code and code→concept)
+• `both` — latex formulas AND code snippets
 • `none` — text only"""
 
 _CARD_STYLE_LANGUAGE = """Choose the card style:
@@ -62,6 +64,7 @@ class DeckWizard:
     description: str = ""
     media: list[str] = field(default_factory=lambda: ["audio"])
     quantity: int = 10
+    code_language: str = ""
 
     @property
     def full_path(self) -> str:
@@ -160,7 +163,11 @@ def wizard_step(wizard: DeckWizard, user_input: str) -> tuple[DeckWizard, str, b
     if wizard.step == "media":
         choice = text.lower().strip()
         if wizard.deck_type == DeckType.stem:
-            if choice in ("latex", "math", "formula", "formulas", "yes", "y"):
+            if "code" in choice and "latex" in choice or choice in ("both", "all"):
+                wizard.media = ["latex", "code"]
+            elif "code" in choice:
+                wizard.media = ["code"]
+            elif choice in ("latex", "math", "formula", "formulas", "yes", "y"):
                 wizard.media = ["latex"]
             else:
                 wizard.media = []
@@ -173,9 +180,26 @@ def wizard_step(wizard: DeckWizard, user_input: str) -> tuple[DeckWizard, str, b
                 wizard.media = ["audio", "image"]
             else:
                 wizard.media = []
+
+        if "code" in wizard.media:
+            wizard.step = "code_language"
+            return wizard, (
+                "What programming language will this deck cover?\n"
+                "Examples: `C`, `C++`, `Python`, `Verilog`, `VHDL`, `Assembly`, `Rust`..."
+            ), False
+
         wizard.step = "card_style"
         style_prompt = _CARD_STYLE_STEM if wizard.deck_type == DeckType.stem else _CARD_STYLE_LANGUAGE
         return wizard, style_prompt, False
+
+    # ── Step 4.5: code language ─────────────────────────────────────────────
+    if wizard.step == "code_language":
+        wizard.code_language = text.strip().lower()
+        wizard.step = "card_style"
+        style_prompt = _CARD_STYLE_STEM if wizard.deck_type == DeckType.stem else _CARD_STYLE_LANGUAGE
+        return wizard, (
+            f"Got it — *{wizard.code_language.upper()}* deck.\n\n{style_prompt}"
+        ), False
 
     # ── Step 5: card style ──────────────────────────────────────────────────
     if wizard.step == "card_style":
@@ -191,9 +215,10 @@ def wizard_step(wizard: DeckWizard, user_input: str) -> tuple[DeckWizard, str, b
 
         wizard.step = "done"
         media_label = ", ".join(wizard.media) if wizard.media else "text only"
+        lang_label = f" | Language: {wizard.code_language.upper()}" if wizard.code_language else ""
         return wizard, (
             f"*{wizard.full_path}* is all set!\n"
-            f"Type: {wizard.deck_type.value} | Style: {wizard.card_style.value.replace('_', ' ')} | Media: {media_label}\n"
+            f"Type: {wizard.deck_type.value} | Style: {wizard.card_style.value.replace('_', ' ')} | Media: {media_label}{lang_label}\n"
             f"Description: _{wizard.description}_\n\n"
             f"Generating {wizard.quantity} cards now..."
         ), True

@@ -419,6 +419,7 @@ def save_subdeck_config(
     fields: list[str],
     deck_type: str = "language",
     card_style: str = "standard",
+    code_language: str | None = None,
 ) -> None:
     """Persist a subdeck config into decks/<deck_name>.yaml so it can be reused later."""
     decks_dir = Path("decks")
@@ -431,7 +432,7 @@ def save_subdeck_config(
     else:
         data = {"deck": deck_name, "language": language, "ai_provider": "claude", "subdecks": {}}
 
-    data.setdefault("subdecks", {})[subdeck_key] = {
+    entry: dict = {
         "topic": topic,
         "daily_limit": daily_limit,
         "fields": fields,
@@ -439,6 +440,9 @@ def save_subdeck_config(
         "deck_type": deck_type,
         "card_style": card_style,
     }
+    if code_language:
+        entry["code_language"] = code_language
+    data.setdefault("subdecks", {})[subdeck_key] = entry
 
     with yaml_path.open("w", encoding="utf-8") as f:
         yaml.dump(data, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
@@ -460,10 +464,12 @@ def _configured_deck_names() -> set[str]:
         return set()
 
 
-def cmd_from_content(content: str, intent: ParsedIntent) -> str:
-    """Generate cards from extracted document/image/URL content."""
+def cmd_from_content(content: str, intent: ParsedIntent, filename: str | None = None) -> str:
+    """Generate cards from extracted document/image/URL/code content."""
+    from src.media.document import language_from_extension, validate_code_file
+
     if not intent.deck:
-        return "Which deck should I add these cards to? (e.g. _Add 10 cards to German deck_)"
+        return "Which deck should I add these cards to? (e.g. _Add 10 cards to Software::C deck_)"
 
     raw_deck = intent.deck
     if "::" in raw_deck:
@@ -484,17 +490,42 @@ def cmd_from_content(content: str, intent: ParsedIntent) -> str:
     if deck_cfg is None:
         deck_cfg = DeckConfig(deck=raw_deck.capitalize(), language=deck_to_language(raw_deck), subdecks={})
 
-    # topic is optional for content-based generation — fall back to deck name
-    topic = intent.topic or f"vocabulary from document"
+    # Look up saved subdeck config to inherit code_language and media
+    saved = _lookup_subdeck_config(deck_cfg.deck, forced_subdeck or intent.subdeck or "")
+
+    topic = intent.topic or "content from document"
     subdeck_key = forced_subdeck or intent.subdeck or clean_subdeck_key(topic)
-    fields = [CardField.word, CardField.translation, CardField.example]
-    media_types = [MediaType(m) for m in intent.media if m in MediaType._value2member_map_]
+
+    # Inherit code media from saved config, or detect from filename
+    if saved and MediaType.code in saved.media:
+        media_types = list(saved.media)
+        code_language = saved.code_language
+        fields = list(saved.fields)
+        deck_type = saved.deck_type
+    elif filename:
+        file_lang = language_from_extension(filename)
+        # Validate file language vs deck language
+        if saved and saved.code_language:
+            err = validate_code_file(filename, saved.code_language)
+            if err:
+                return err
+        code_language = file_lang
+        media_types = [MediaType.code]
+        fields = [CardField.question, CardField.answer, CardField.difficulty]
+        deck_type = DeckType.stem
+    else:
+        media_types = [MediaType(m) for m in intent.media if m in MediaType._value2member_map_]
+        code_language = None
+        fields = [CardField.word, CardField.translation, CardField.example]
+        deck_type = saved.deck_type if saved else DeckType.language
 
     subdeck_cfg = SubdeckConfig(
         topic=topic,
         daily_limit=intent.quantity,
-        fields=fields,
+        deck_type=deck_type,
+        fields=fields if deck_type == DeckType.language else [CardField.question, CardField.answer, CardField.difficulty],
         media=media_types,
+        code_language=code_language,
     )
 
     client = _get_client()
@@ -506,9 +537,15 @@ def cmd_from_content(content: str, intent: ParsedIntent) -> str:
     anki_deck_name = deck_cfg.subdeck_anki_name(subdeck_key)
     already_known = client.existing_words_in_deck(anki_deck_name) if use_ankiconnect else []
 
-    cards = ClaudeProvider().generate_cards_from_content(
-        content, subdeck_cfg, deck_cfg.language, already_known
-    )
+    if filename or (saved and MediaType.code in (saved.media if saved else [])):
+        from src.ai.stem_provider import StemProvider
+        cards = StemProvider().generate_cards(
+            subdeck_cfg, subdeck_cfg.card_style, already_known, source_code=content
+        )
+    else:
+        cards = ClaudeProvider().generate_cards_from_content(
+            content, subdeck_cfg, deck_cfg.language, already_known
+        )
 
     audio_ok, audio_fail, img_ok, img_fail, img_error = fetch_media_for_cards(
         cards, media_types, deck_cfg.language, media_cache_dir

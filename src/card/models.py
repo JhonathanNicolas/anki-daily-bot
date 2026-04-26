@@ -19,6 +19,9 @@ class CardData:
     formula: str = ""        # LaTeX/MathJax string e.g. r"\[F(\omega) = \int f(t)e^{-j\omega t}dt\]"
     difficulty: str = ""     # easy | medium | hard
 
+    # --- Code ---
+    code_snippet: str = ""   # raw code block (language stored in SubdeckConfig)
+
     # --- Shared ---
     example: str = ""
     notes: str = ""
@@ -79,6 +82,16 @@ class CardData:
         return cls(
             cloze_text=data.get("Text", ""),
             notes=data.get("Extra", ""),
+            difficulty=data.get("Difficulty", "medium"),
+        )
+
+    @classmethod
+    def from_code_dict(cls, data: dict) -> CardData:
+        return cls(
+            question=data.get("Question", ""),
+            answer=data.get("Answer", ""),
+            code_snippet=data.get("Code", ""),
+            example=data.get("Example", ""),
             difficulty=data.get("Difficulty", "medium"),
         )
 

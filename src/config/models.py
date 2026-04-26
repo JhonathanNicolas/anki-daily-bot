@@ -11,6 +11,7 @@ class MediaType(str, Enum):
     image = "image"
     audio = "audio"
     latex = "latex"
+    code = "code"
 
 
 class DeckType(str, Enum):
@@ -37,6 +38,7 @@ class CardField(str, Enum):
     answer = "Answer"
     formula = "Formula"
     difficulty = "Difficulty"
+    code = "Code"
 
 
 class SubdeckConfig(BaseModel):
@@ -48,6 +50,7 @@ class SubdeckConfig(BaseModel):
     media: list[MediaType] = Field(default_factory=list)
     extra_instructions: Optional[str] = None
     single_word: bool = False  # True → generate a definition card FOR this word; False → use as theme
+    code_language: Optional[str] = None  # e.g. "c", "vhdl", "python" — used when media includes code
 
     @field_validator("fields")
     @classmethod

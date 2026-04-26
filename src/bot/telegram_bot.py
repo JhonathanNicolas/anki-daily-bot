@@ -23,7 +23,16 @@ from src.bot.commands import (
     deck_id,
 )
 from src.bot.nlu import parse_message, parse_multi_message
-from src.media.document import detect_url, extract_from_image, extract_from_pdf, extract_from_url
+from src.media.document import (
+    CODE_EXTENSIONS,
+    detect_url,
+    extract_from_code_file,
+    extract_from_image,
+    extract_from_pdf,
+    extract_from_url,
+    language_from_extension,
+    validate_code_file,
+)
 from src.bot.wizard import DeckWizard, WizardCancelled, wizard_start, wizard_step
 
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
@@ -134,6 +143,22 @@ async def _handle_content(update: Update, context: ContextTypes.DEFAULT_TYPE, co
     await _reply(update, result)
 
 
+async def _handle_code_content(
+    update: Update, context: ContextTypes.DEFAULT_TYPE,
+    filename: str, code: str, instruction: str
+) -> None:
+    """Handle a code file once we have both content and a deck instruction."""
+    await _reply(update, "Got it, working on it...")
+    try:
+        intent = parse_message(instruction)
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(None, cmd_from_content, code, intent, filename)
+    except Exception as exc:
+        logger.exception("Error processing code file")
+        result = f"Something went wrong: {exc}"
+    await _reply(update, result)
+
+
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     _log_message(update, "photo")
     await _reply(update, "Extracting content from image...")
@@ -154,21 +179,52 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     _log_message(update, "document")
     doc = update.message.document
-    if not doc.mime_type == "application/pdf":
-        await _reply(update, "Unsupported file type. Please send a PDF or an image.")
-        return
-    await _reply(update, "Extracting content from PDF...")
-    try:
-        file = await context.bot.get_file(doc.file_id)
-        file_bytes = await file.download_as_bytearray()
-        loop = asyncio.get_event_loop()
-        content = await loop.run_in_executor(None, extract_from_pdf, bytes(file_bytes))
-    except Exception as exc:
-        logger.exception("PDF extraction failed")
-        await _reply(update, f"Could not read PDF: {exc}")
-        return
+    filename = doc.file_name or ""
+    ext = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
     caption = (update.message.caption or "").strip()
-    await _handle_content(update, context, content, caption)
+
+    # ── Code file ──────────────────────────────────────────────────────────
+    if ext in CODE_EXTENSIONS:
+        await _reply(update, f"Reading `{filename}`...")
+        try:
+            file = await context.bot.get_file(doc.file_id)
+            file_bytes = await file.download_as_bytearray()
+            content = extract_from_code_file(bytes(file_bytes))
+        except Exception as exc:
+            logger.exception("Code file read failed")
+            await _reply(update, f"Could not read file: {exc}")
+            return
+
+        # Store the file metadata alongside content so cmd_from_content can validate
+        user_id = update.effective_user.id
+        _pending_documents[user_id] = f"__code_file__|{filename}|{content}"
+        if caption:
+            # Process immediately if caption contains deck info
+            await _handle_code_content(update, context, filename, content, caption)
+        else:
+            lang = language_from_extension(filename)
+            await _reply(update,
+                f"`{filename}` ready ({lang.upper() if lang else 'code'}, {len(content.splitlines())} lines).\n"
+                f"Which deck and how many cards? e.g. _Add 10 cards to Software::C deck_"
+            )
+        return
+
+    # ── PDF ────────────────────────────────────────────────────────────────
+    if doc.mime_type == "application/pdf" or ext == ".pdf":
+        await _reply(update, "Extracting content from PDF...")
+        try:
+            file = await context.bot.get_file(doc.file_id)
+            file_bytes = await file.download_as_bytearray()
+            loop = asyncio.get_event_loop()
+            content = await loop.run_in_executor(None, extract_from_pdf, bytes(file_bytes))
+        except Exception as exc:
+            logger.exception("PDF extraction failed")
+            await _reply(update, f"Could not read PDF: {exc}")
+            return
+        await _handle_content(update, context, content, caption)
+        return
+
+    await _reply(update, f"Unsupported file type `{ext}`. Send a PDF, image, or code file ({', '.join(sorted(CODE_EXTENSIONS))}).")
 
 
 async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -215,15 +271,19 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # --- Pending document waiting for deck instruction ---
     pending_content = _pending_documents.pop(user_id, None)
     if pending_content is not None:
-        await _reply(update, "Got it, working on it...")
-        try:
-            intent = parse_message(text)
-            loop = asyncio.get_event_loop()
-            result = await loop.run_in_executor(None, cmd_from_content, pending_content, intent)
-        except Exception as exc:
-            logger.exception("Error processing pending document")
-            result = f"Something went wrong: {exc}"
-        await _reply(update, result)
+        if pending_content.startswith("__code_file__|"):
+            _, filename, code = pending_content.split("|", 2)
+            await _handle_code_content(update, context, filename, code, text)
+        else:
+            await _reply(update, "Got it, working on it...")
+            try:
+                intent = parse_message(text)
+                loop = asyncio.get_event_loop()
+                result = await loop.run_in_executor(None, cmd_from_content, pending_content, intent)
+            except Exception as exc:
+                logger.exception("Error processing pending document")
+                result = f"Something went wrong: {exc}"
+            await _reply(update, result)
         return
 
     # --- URL detected in message ---
@@ -380,6 +440,7 @@ def _run_wizard_generation(wizard: DeckWizard) -> str:
         card_style=card_style,
         fields=fields,
         media=media_types,
+        code_language=wizard.code_language or None,
     )
 
     client = AnkiConnectClient(url=os.environ.get("ANKI_CONNECT_URL", "http://localhost:8765"))
@@ -396,6 +457,11 @@ def _run_wizard_generation(wizard: DeckWizard) -> str:
         cards = StemProvider().generate_cards(subdeck_cfg, card_style, already_known)
     else:
         cards = ClaudeProvider().generate_cards(subdeck_cfg, deck_cfg.language, already_known)
+
+    # Skip media fetch for code cards (no audio/images needed)
+    if MediaType.code in media_types:
+        audio_ok = audio_fail = img_ok = img_fail = 0
+        img_error = ""
 
     audio_ok, audio_fail, img_ok, img_fail, img_error = fetch_media_for_cards(
         cards, media_types, deck_cfg.language, media_cache_dir, deck_type=deck_type
@@ -417,6 +483,7 @@ def _run_wizard_generation(wizard: DeckWizard) -> str:
             fields=[f.value for f in fields],
             deck_type=deck_type.value,
             card_style=card_style.value,
+            code_language=wizard.code_language or None,
         )
 
         style_label = f" ({card_style.value.replace('_', ' ')})" if card_style != CardStyle.standard else ""
