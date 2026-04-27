@@ -216,10 +216,13 @@ def wizard_step(wizard: DeckWizard, user_input: str) -> tuple[DeckWizard, str, b
         wizard.step = "done"
         media_label = ", ".join(wizard.media) if wizard.media else "text only"
         lang_label = f" | Language: {wizard.code_language.upper()}" if wizard.code_language else ""
+        # Truncate and escape description so Markdown doesn't break on user-typed content
+        desc = wizard.description.replace("*", "").replace("_", "").replace("`", "").replace("[", "").replace("<", "").replace(">", "")
+        desc_short = desc[:120] + "..." if len(desc) > 120 else desc
         return wizard, (
             f"*{wizard.full_path}* is all set!\n"
             f"Type: {wizard.deck_type.value} | Style: {wizard.card_style.value.replace('_', ' ')} | Media: {media_label}{lang_label}\n"
-            f"Description: _{wizard.description}_\n\n"
+            f"Description: _{desc_short}_\n\n"
             f"Generating {wizard.quantity} cards now..."
         ), True
 
