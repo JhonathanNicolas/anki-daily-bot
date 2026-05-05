@@ -9,6 +9,10 @@ output/
 media_cache/
 logs/
 
+# Data files — processed locally, never committed (may contain personal notes)
+data/*.txt
+data/*.md
+
 # Python cache
 __pycache__/
 *.pyc
