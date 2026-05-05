@@ -5,7 +5,7 @@ PYTEST = $(VENV)/bin/pytest
 RUFF = $(VENV)/bin/ruff
 VENV_SITE = $(VENV)/lib/python3.12/site-packages
 
-.PHONY: install test lint run run-dry bot daily schedule-install schedule-remove
+.PHONY: install test lint run run-dry bot daily data schedule-install schedule-remove
 
 install:
 	python3 -m venv $(VENV)
@@ -29,6 +29,9 @@ bot:
 
 daily:
 	PYTHONPATH="$(VENV_SITE):$$PYTHONPATH" $(PYTHON) -m src.scheduler
+
+data:
+	PYTHONPATH="$(VENV_SITE):$$PYTHONPATH" $(PYTHON) -m src.data_processor
 
 # Install a daily cron job at 07:00 (edit SCHEDULE_HOUR to change)
 SCHEDULE_HOUR ?= 7
